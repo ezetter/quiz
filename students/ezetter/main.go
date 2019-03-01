@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -21,19 +22,34 @@ type resultCounts struct {
 	correct int
 }
 
-func questionLoop(records [][]string, results *resultCounts, done chan bool) {
-	reader := bufio.NewReader(os.Stdin)
+func getInds(num int, randomized bool) []int {
+	var a []int
+	if randomized {
+		r := rand.New(rand.NewSource(time.Now().Unix()))
+		a = r.Perm(num)
+	} else {
+		a = make([]int, num)
+		for i := range a {
+			a[i] = i
+		}
+	}
+	fmt.Println(a)
+	return a
+}
 
-	for _, rec := range records {
-		fmt.Printf("%s ", rec[0])
+func questionLoop(records [][]string, results *resultCounts, randomize bool, done chan bool) {
+	reader := bufio.NewReader(os.Stdin)
+	inds := getInds(len(records), randomize)
+	for _, i := range inds {
+		fmt.Printf("%s ", records[i][0])
 		inp, _ := reader.ReadString('\n')
 		sanatizedInp := strings.ToLower(strings.TrimSpace(inp))
-		sanatizedAns := strings.ToLower(strings.TrimSpace(rec[1]))
+		sanatizedAns := strings.ToLower(strings.TrimSpace(records[i][1]))
 		if sanatizedInp == sanatizedAns {
 			results.correct++
 			fmt.Println("Right!")
 		} else {
-			fmt.Printf("Wrong! The answer is %s.\n", rec[1])
+			fmt.Printf("Wrong! The answer is %s.\n", records[i][1])
 		}
 	}
 	done <- true
@@ -42,6 +58,7 @@ func questionLoop(records [][]string, results *resultCounts, done chan bool) {
 func main() {
 	var probpath = flag.String("probpath", "problems.csv", "Path to the problems file.")
 	var timeout = flag.Int("timeout", 30, "Seconds until a quiz times out. 0 for no timeout")
+	var randomize = flag.Bool("randomize", false, "If true, present quiz questions in a random order.")
 	flag.Parse()
 	f, err := os.Open(*probpath)
 	defer f.Close()
@@ -55,7 +72,7 @@ func main() {
 	bufio.NewReader(os.Stdin).ReadString('\n')
 
 	done := make(chan bool)
-	go questionLoop(records, &results, done)
+	go questionLoop(records, &results, *randomize, done)
 	if *timeout > 0 {
 		select {
 		case <-done:
